@@ -204,7 +204,7 @@ class TestHatenaDiary < Test::Unit::TestCase
   def test_post_trivial
     form = post_mocking("d", "20071108")
     @client.transaction do |client|
-      client.post 2007, 11, 8, 'TITLE', 'BODY', :trivial => true
+      client.post 2007, 11, 8, 'TITLE', 'BODY', trivial: true
     end
     assert_equal "true", form["trivial"]
   end
@@ -212,14 +212,14 @@ class TestHatenaDiary < Test::Unit::TestCase
   def test_post_group
     post_mocking "hoge.g", "12340506"
     @client.transaction do |client|
-      client.post 1234, 5, 6, 'TITLE', 'BODY', :group => 'hoge'
+      client.post 1234, 5, 6, 'TITLE', 'BODY', group: 'hoge'
     end
   end
 
   def test_post_group_trivial
     form = post_mocking("hoge.g", "12340506")
     @client.transaction do |client|
-      client.post 1234, 5, 6, 'TITLE', 'BODY', :group => 'hoge', :trivial => true
+      client.post 1234, 5, 6, 'TITLE', 'BODY', group: 'hoge', trivial: true
     end
     assert_equal "true", form["trivial"]
   end
@@ -253,7 +253,7 @@ class TestHatenaDiary < Test::Unit::TestCase
   def test_delete_group
     delete_mocking "piyo.g", "12340506"
     @client.transaction do |client|
-      client.delete 1234, 5, 6, :group => 'piyo'
+      client.delete 1234, 5, 6, group: 'piyo'
     end
   end
 
