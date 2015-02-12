@@ -1,26 +1,5 @@
 require "hatenadiary/version"
-require 'nokogiri'
 require 'mechanize'
-
-# depend on Ruby version
-module HatenaDiary
-  module Util
-    if RUBY_VERSION >= '1.9'
-      def encode_to_utf8(str)
-        str.encode(Encoding::UTF_8)
-      end
-    else
-      require 'kconv'
-
-      def encode_to_utf8(str)
-        Kconv.toutf8(str)
-      end
-    end
-
-    module_function :encode_to_utf8
-  end
-end
-
 
 module HatenaDiary
   #
@@ -141,17 +120,15 @@ module HatenaDiary
     # [:group]   assign hatena-group name. edit group diary.
     #
     # Invalid options were ignored.
-    def post(yyyy, mm, dd, title, body, options = {})
-      title = Util.encode_to_utf8(title)
-      body  = Util.encode_to_utf8(body)
-      form = get_form(yyyy, mm, dd, options[:group]){|r| r.form_with(:name => 'edit') }
+    def post(yyyy, mm, dd, title, body, group: nil, trivial: false)
+      form = get_form(yyyy, mm, dd, group){|r| r.form_with(name: 'edit') }
       form["year"]    = "%04d" % yyyy
       form["month"]   = "%02d" % mm
       form["day"]     = "%02d" % dd
-      form["title"]   = title
-      form["body"]    = body
-      form["trivial"] = "true" if options[:trivial]
-      @agent.submit form, form.button_with(:name => 'edit')
+      form["title"]   = title.encode(Encoding::UTF_8)
+      form["body"]    = body.encode(Encoding::UTF_8)
+      form["trivial"] = "true" if trivial
+      @agent.submit form, form.button_with(name: 'edit')
     end
 
     # Deletes an entry from Hatena diary service.
@@ -162,8 +139,8 @@ module HatenaDiary
     # [:group]   assign hatena-group name. edit group diary.
     #
     # Invalid options were ignored.
-    def delete(yyyy, mm, dd, options = {})
-      get_form(yyyy, mm, dd, options[:group]){|r| r.forms.last }.submit
+    def delete(yyyy, mm, dd, group: nil)
+      get_form(yyyy, mm, dd, group){|r| r.forms.last }.submit
     end
 
     private
