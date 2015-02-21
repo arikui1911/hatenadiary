@@ -1,76 +1,75 @@
-require 'test/unit'
-require 'flexmock'
+require 'test-unit'
+require 'flexmock/test_unit'
 require 'hatenadiary'
+require 'hatenadiary/version'
 
-
-class TestHatenaDiaryAPI < Test::Unit::TestCase
-  include FlexMock::TestCase
-
-  def test_default_mechanizer
-    HatenaDiary::Client.mechanizer = nil
-    assert_equal Mechanize, HatenaDiary::Client.mechanizer
+class TestHatenaDiary < Test::Unit::TestCase
+  setup do
+    @username = "USERNAME"
+    @password = "PASSWORD"
+    @agent = flexmock("agent")
+    flexmock(Mechanize, new: @agent)
+    @client = HatenaDiary.new(@username, @password)
   end
 
-  def setup
-    @username = 'USERNAME'
-    @password = 'PASSWORD'
-    @proxy_url  = "PROXY_URL"
-    @proxy_port = "PROXY_PORT"
+  test "login and logout" do
+    login_page = flexmock("login_page")
+    form       = flexmock("form")
+    response   = flexmock("response")
+    @agent.should_receive(:get).with("https://www.hatena.ne.jp/login").and_return(login_page)
+    login_page.should_receive(:forms).and_return([form])
+    form.should_receive(:[]=).with("name", @username).once
+    form.should_receive(:[]=).with("password", @password).once
+    form.should_receive(:[]=).with("persistent", "true").once
+    form.should_receive(:submit).once.and_return(response)
+    response.should_receive(:title).and_return("Hatena")
+    @agent.should_receive(:get).with("https://www.hatena.ne.jp/logout")
+    assert !@client.login?
+    @client.login
+    assert @client.login?
+    @client.logout
+    assert !@client.login?
   end
 
-  def test_api_login
-    flexmock HatenaDiary::Client
-    HatenaDiary::Client.should_receive(:login)
-    HatenaDiary.login
+  def login_mocking(submit_response_page_title)
+    login_page = flexmock("login_page")
+    form = flexmock("form").extend(MockHash)
+    forms = [form]
+    response = flexmock("response")
+    @agent.should_receive(:get).with("https://www.hatena.ne.jp/login").and_return(login_page)
+    login_page.should_receive(:forms).and_return(forms)
+    form.should_receive(:submit).and_return(response)
+    response.should_receive(:title).and_return(submit_response_page_title)
+    form
   end
 
-  def setup_mocks
-    flexmock HatenaDiary::Client
-    @client = flexmock("client")
+  def logout_mocking
+    @agent.should_receive(:get).with("https://www.hatena.ne.jp/logout")
   end
 
-  def test_login
-    setup_mocks
-    HatenaDiary::Client.should_receive(:new).with(@username, @password).and_return(@client)
-    @client.should_receive(:transaction).and_yield('block delegate check')
-    HatenaDiary::Client.login(@username, @password) do |str|
-      assert_equal 'block delegate check', str
-    end
-  end
-
-  def test_login_with_proxy
-    setup_mocks
-    HatenaDiary::Client.should_receive(:new).with(@username, @password).and_return(@client)
-    @client.should_receive(:set_proxy).with(@proxy_url, @proxy_port)
-    @client.should_receive(:transaction).yields('block delegate check')
-    HatenaDiary::Client.login(@username, @password,  [@proxy_url, @proxy_port]) do |str|
-      assert_equal 'block delegate check', str
-    end
-  end
-
-  def test_login_without_block
-    setup_mocks
-    HatenaDiary::Client.should_receive(:new).with(@username, @password).and_return(@client)
-    assert_equal @client, HatenaDiary::Client.login(@username, @password)
-  end
-
-  def test_login_without_block_with_proxy
-    setup_mocks
-    HatenaDiary::Client.should_receive(:new).with(@username, @password).and_return(@client)
-    @client.should_receive(:set_proxy).with(@proxy_url, @proxy_port)
-    assert_equal @client, HatenaDiary::Client.login(@username, @password, [@proxy_url, @proxy_port])
+  def _test_login_and_logout
+    # before login
+    assert !@client.login?
+    # login
+    form = login_mocking("Hatena")
+    @client.login
+    assert @client.login?
+    assert_equal form["name"],       @username
+    assert_equal form["password"],   @password
+    assert_equal form["persistent"], "true"
+    # logout
+    logout_mocking
+    @client.logout
+    assert !@client.login?
   end
 end
 
-
-class TestHatenaDiary < Test::Unit::TestCase
-  include FlexMock::TestCase
-
+class NotTestHatenaDiary# < Test::Unit::TestCase
   def setup
     @username = 'USERNAME'
     @password = 'PASSWORD'
     @agent = flexmock("agent")
-    @client = HatenaDiary::Client.new(@username, @password, @agent)
+    @client = HatenaDiary.new(@username, @password)
   end
 
   def test_set_proxy
