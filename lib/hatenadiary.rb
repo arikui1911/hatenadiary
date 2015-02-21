@@ -1,156 +1,129 @@
-require "hatenadiary/version"
 require 'mechanize'
 
-module HatenaDiary
-  #
-  # Allocates Client object and makes it login, execute a received block,
-  # and then logout.
-  #
-  # :call-seq:
-  #   login(username, password, proxy = nil){|client| ... }
-  #
-  def login(*args, &block)
-    Client.login(*args, &block)
-  end
-  module_function :login
-
-  class LoginError < RuntimeError
-    def set_account(username, password)
-      @username = username
-      @password = password
-      self
+class HatenaDiary
+  def self.login(*args)
+    client = new(*args)
+    return unless block_given?
+    client.login
+    begin
+      yield client
+    ensure
+      client.logout
     end
-
-    attr_reader :username
-    attr_reader :password
   end
 
-  class Client
-    def self.mechanizer
-      @mechanizer ||= Mechanize
+  def initialize(username, password,
+                 groupname: nil, read_timeout_sec: nil, user_agent_alias: nil,
+                 http_proxy: nil, cookie_file_path: nil,
+                 hatena_encoding: Encoding::UTF_8)
+    @username = username
+    @password = password
+    if groupname
+      @groupname = groupname
+      extend GroupDiary
     end
+    @agent                  = Mechanize.new
+    @agent.read_timeout     = read_timeout_sec if read_timeout_sec
+    @agent.user_agent_alias = user_agent_alias if user_agent_alias
+    @agent.set_proxy(*http_proxy) if http_proxy
+    @cookie_file = cookie_file_path
+    @encoding    = hatena_encoding
+    @login_p = false
+  end
 
-    def self.mechanizer=(klass)
-      @mechanizer = klass
+  def inspect
+    "#<HatenaDiary:#{@username}>"
+  end
+
+  def login?
+    @login_p
+  end
+
+  def login
+    if @cookie_file
+      @agent.cookie_jar.load @cookie_file
+    else
+      try_login
     end
+    @login_p = true
+  end
 
-    # Allocates Client object.
-    #
-    # If block given, login and execute a received block, and then logout ensurely.
-    #
-    # [username] Hatena ID
-    # [password] Password for _username_
-    # [proxy] Proxy configuration; [proxy_url, port_no] | nil
-    #
-    def self.login(username, password, proxy = nil, &block)
-      client = new(username, password)
-      client.set_proxy(*proxy) if proxy
-      return client unless block_given?
-      client.transaction(&block)
+  private def try_login
+    form = @agent.get("https://www.hatena.ne.jp/login").forms.first
+    form["name"]       = @username
+    form["password"]   = @password
+    form["persistent"] = "true"
+    response = form.submit
+    case response.title
+    when "Hatena" then response
+    when "Login - Hatena" then raise login_error("login failure")
+    else raise Exception, '[HatenaDiary][BUG] must not happen (maybe cannot follow hatena spec)'
     end
+  end
 
-    # Allocates Client object.
-    #
-    # [username] Hatena ID
-    # [password] Password for _username_
-    def initialize(username, password, agent = self.class.mechanizer.new)
-      @agent = agent
-      @username = username
-      @password = password
-      @current_account = nil
+  def logout
+    if @cookie_file
+      @agent.cookie_jar.save @cookie_file
+    else
+      @agent.get("https://www.hatena.ne.jp/logout")   # logout
     end
+    @login_p = false
+  end
 
-    # Configure proxy.
-    def set_proxy(url, port)
-      @agent.set_proxy(url, port)
-    end
+  def post(yyyy, mm, dd, title, body, trivial: false)
+    login_error "not logined yet" unless login?
+    form = edit_form(yyyy, mm, dd){|r| r.form_with(name: 'edit') }
+    form["year"]    = "%04d" % yyyy
+    form["month"]   = "%02d" % mm
+    form["day"]     = "%02d" % dd
+    form["title"]   = title.encode(@encoding)
+    form["body"]    = body.encode(@encoding)
+    form["trivial"] = "true" if trivial
+    @agent.submit form, form.button_with(name: 'edit')
+  end
 
-    # Login and execute a received block, and then logout ensurely.
-    def transaction(username = nil, password = nil)
-      raise LocalJumpError, "no block given" unless block_given?
-      login(username, password)
-      begin
-        yield(self)
-      ensure
-        logout
-      end
-    end
+  def delete(yyyy, mm, dd)
+    login_error "not logined yet" unless login?
+    edit_form(yyyy, mm, dd){|r| r.forms.last }.submit
+  end
 
-    # Returns a client itself was logined or not.
-    #
-    # -> true | false
-    def login?
-      @current_account ? true : false
-    end
+  private
 
-    # Does login.
-    #
-    # If _username_ or _password_ are invalid, raises HatenaDiary::LoginError .
-    def login(username = nil, password = nil)
-      username ||= @username
-      password ||= @password
-      form = @agent.get("https://www.hatena.ne.jp/login").forms.first
-      form["name"]       = username
-      form["password"]   = password
-      form["persistent"] = "true"
-      response = form.submit
-      @current_account = [username, password]
-      case response.title
-      when "Hatena" then response
-      when "Login - Hatena" then raise LoginError.new("login failure").set_account(username, password)
-      else raise Exception, '[BUG] must not happen (maybe cannot follow hatena spec)'
-      end
-    end
+  def edit_form(yyyy, mm, dd)
+    yield @agent.get(edit_url(yyyy, mm, dd))
+  end
 
-    # Does logout if already logined.
-    def logout
-      return unless login?
-      @agent.get("https://www.hatena.ne.jp/logout")
-      account = @current_account
-      @current_account = nil
-      account
-    end
+  def edit_url(yyyy, mm, dd)
+    sprintf "http://d.hatena.ne.jp/%s/edit?date=%04d%02d%02d", @username, yyyy, mm, dd
+  end
 
-    # Posts an entry to Hatena diary service.
-    #
-    # Raises HatenaDiary::LoginError unless logined.
-    #
-    # options
-    # [:trivial] check a checkbox of trivial updating.
-    # [:group]   assign hatena-group name. edit group diary.
-    #
-    # Invalid options were ignored.
-    def post(yyyy, mm, dd, title, body, group: nil, trivial: false)
-      form = get_form(yyyy, mm, dd, group){|r| r.form_with(name: 'edit') }
-      form["year"]    = "%04d" % yyyy
-      form["month"]   = "%02d" % mm
-      form["day"]     = "%02d" % dd
-      form["title"]   = title.encode(Encoding::UTF_8)
-      form["body"]    = body.encode(Encoding::UTF_8)
-      form["trivial"] = "true" if trivial
-      @agent.submit form, form.button_with(name: 'edit')
-    end
+  def login_error(msg)
+    LoginError.new(@username)
+  end
 
-    # Deletes an entry from Hatena diary service.
-    #
-    # Raises HatenaDiary::LoginError unless logined.
-    #
-    # options
-    # [:group]   assign hatena-group name. edit group diary.
-    #
-    # Invalid options were ignored.
-    def delete(yyyy, mm, dd, group: nil)
-      get_form(yyyy, mm, dd, group){|r| r.forms.last }.submit
+  module GroupDiary
+    def inspect
+      "#<HatenaDiary:#{@groupname}:#{@username}>"
     end
 
     private
 
-    def get_form(yyyy, mm, dd, group = nil)
-      raise LoginError, "not login yet" unless login?
-      vals = [group ? "#{group}.g" : "d",
-              @current_account[0],
-              yyyy, mm, dd]
-      yield @agent.get("http://%s.hatena.ne.jp/%s/edit?date=%04d%02d%02d" % vals)
+    def login_error(msg)
+      LoginError.new(@username, @groupname)
     end
+
+    def edit_url(yyyy, mm, dd)
+      sprintf "http://%s.g.hatena.ne.jp/%s/edit?date=%04d%02d%02d", @groupname, @username, yyyy, mm, dd
+    end
+  end
+
+  class LoginError
+    def initialize(msg, username, groupname = nil)
+      super [groupname, username, msg].compact.join(': ')
+      @username  = username
+      @groupname = groupname
+    end
+
+    attr_reader :username, :groupname
   end
 end
