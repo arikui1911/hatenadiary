@@ -31,36 +31,43 @@ class TestHatenaDiary < Test::Unit::TestCase
     assert !@client.login?
   end
 
-  def login_mocking(submit_response_page_title)
+  test "login failure" do
     login_page = flexmock("login_page")
-    form = flexmock("form").extend(MockHash)
-    forms = [form]
-    response = flexmock("response")
+    form       = flexmock("form")
+    response   = flexmock("response")
     @agent.should_receive(:get).with("https://www.hatena.ne.jp/login").and_return(login_page)
-    login_page.should_receive(:forms).and_return(forms)
-    form.should_receive(:submit).and_return(response)
-    response.should_receive(:title).and_return(submit_response_page_title)
-    form
+    login_page.should_receive(:forms).and_return([form])
+    form.should_receive(:[]=).with("name", @username).once
+    form.should_receive(:[]=).with("password", @password).once
+    form.should_receive(:[]=).with("persistent", "true").once
+    form.should_receive(:submit).once.and_return(response)
+    response.should_receive(:title).and_return("Login - Hatena")
+    assert_raise(HatenaDiary::LoginError){
+      @client.login
+    }
   end
 
-  def logout_mocking
-    @agent.should_receive(:get).with("https://www.hatena.ne.jp/logout")
+  def _test_login_failure
+    login_mocking "Login - Hatena"
+    begin
+      @client.login
+    rescue HatenaDiary::LoginError => ex
+      assert_equal @username, ex.username
+      assert_equal @password, ex.password
+    else
+      flunk "login error must be raised."
+    end
   end
 
-  def _test_login_and_logout
-    # before login
-    assert !@client.login?
-    # login
-    form = login_mocking("Hatena")
-    @client.login
-    assert @client.login?
-    assert_equal form["name"],       @username
-    assert_equal form["password"],   @password
-    assert_equal form["persistent"], "true"
-    # logout
-    logout_mocking
-    @client.logout
-    assert !@client.login?
+  def _test_login_if_hatena_changed
+    login_mocking "*jumbled pagetitle*"
+    begin
+      @client.login
+    rescue Exception => ex
+      assert /must not happen/ =~ ex.message
+    else
+      flunk "exception must be raised"
+    end
   end
 end
 
