@@ -56,7 +56,7 @@ class HatenaDiary
     response = form.submit
     case response.title
     when "Hatena" then response
-    when "Login - Hatena" then raise login_error("login failure")
+    when "Login - Hatena" then login_error("login failure")
     else raise Exception, '[HatenaDiary][BUG] must not happen (maybe cannot follow hatena spec)'
     end
   end
@@ -98,7 +98,7 @@ class HatenaDiary
   end
 
   def login_error(msg)
-    LoginError.new(@username)
+    raise LoginError.new(msg, @username)
   end
 
   module GroupDiary
@@ -109,7 +109,7 @@ class HatenaDiary
     private
 
     def login_error(msg)
-      LoginError.new(@username, @groupname)
+      LoginError.new(msg, @username, @groupname)
     end
 
     def edit_url(yyyy, mm, dd)
@@ -117,7 +117,7 @@ class HatenaDiary
     end
   end
 
-  class LoginError
+  class LoginError < RuntimeError
     def initialize(msg, username, groupname = nil)
       super [groupname, username, msg].compact.join(': ')
       @username  = username
