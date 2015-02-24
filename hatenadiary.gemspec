@@ -21,14 +21,14 @@ Gem::Specification.new do |spec|
   spec.files         = `git ls-files -z`.split("\x0").reject { |f| f.match(%r{^(test|spec|features)/}) }
   spec.require_paths = ["lib"]
 
-  spec.add_runtime_dependency "mechanize", "~> 0"
+  spec.add_runtime_dependency "mechanize"
   if RUBY_VERSION >= "2.0.0"
-    spec.add_runtime_dependency "iconv", "~> 1.0.0"
+    spec.add_runtime_dependency "iconv"
   end
 
   spec.add_development_dependency "bundler", "~> 1.8"
   spec.add_development_dependency "rake", "~> 10.0"
   spec.add_development_dependency "rspec"
-  spec.add_development_dependency "test-unit", "~> 0"
-  spec.add_development_dependency "flexmock", "~> 0"
+  spec.add_development_dependency "test-unit"
+  spec.add_development_dependency "flexmock"
 end
