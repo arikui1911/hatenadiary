@@ -23,7 +23,7 @@ Gem::Specification.new do |spec|
 
   spec.add_runtime_dependency "mechanize", "~> 0"
   if RUBY_VERSION >= "2.0.0"
-    spec.add_runtime_dependency "iconv", "~> 0"
+    spec.add_runtime_dependency "iconv", "~> 1.0.0"
   end
 
   spec.add_development_dependency "bundler", "~> 1.8"
