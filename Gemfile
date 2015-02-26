@@ -11,5 +11,6 @@ end
 group :development do
   gem 'test-unit'
   gem 'flexmock'
+  gem 'yard'
 end
 
