@@ -1,3 +1,3 @@
-module HatenaDiary
+class HatenaDiary
   VERSION = "0.1.0"
 end
