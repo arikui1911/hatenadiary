@@ -1,4 +1,4 @@
-* Hatenadiary
+* HatenaDiary
 
 This is a library provides a client for Hatena Diary to post and delete blog entries.
 
