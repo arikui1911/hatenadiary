@@ -5,7 +5,7 @@ require 'hatenadiary/version'
 
 Gem::Specification.new do |spec|
   spec.name          = "hatenadiary"
-  spec.version       = Hatenadiary::VERSION
+  spec.version       = HatenaDiary::VERSION
   spec.authors       = ["arikui1911"]
   spec.email         = ["arikui.ruby@gmail.com"]
 
@@ -31,4 +31,5 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "rspec"
   spec.add_development_dependency "test-unit"
   spec.add_development_dependency "flexmock"
+  spec.add_development_dependency "yard"
 end
